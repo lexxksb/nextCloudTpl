@@ -10,7 +10,7 @@ services:
     volumes:
       - db:/var/lib/mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_ROOT_PASSWORD=
     env_file:
       - db.env
 
@@ -40,15 +40,15 @@ services:
   web:
     build: ./web
     restart: always
-    ports:
-      - 9099:443/tcp
     volumes:
       - nextcloud:/var/www/html:ro
-      - ./proxy/certs:/etc/ssl/nginx:ro
     environment:
       - VIRTUAL_HOST=cloud.example.com
       - LETSENCRYPT_HOST=
       - LETSENCRYPT_EMAIL=
+    networks:
+      - proxy-tier
+      - default
     depends_on:
       - app
 
@@ -61,6 +61,18 @@ services:
     depends_on:
       - db
       - redis
+
+  proxy:
+    build: ./proxy
+    restart: always
+    ports:
+      #- 80:80
+      #- 443:443
+      - 9099:443
+    volumes:
+      - ./proxy/certs:/etc/ssl/nginx:ro
+    networks:
+      - proxy-tier
 
 volumes:
   db:
