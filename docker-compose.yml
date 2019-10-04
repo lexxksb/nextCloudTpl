@@ -1,97 +1,82 @@
-version: "3.7"
+version: '3.7'
 
 services:
-
-  proxy:
-    image: nginx
-    container_name: nextcloud-proxy
-    networks:
-      - nextcloud_network
-    ports:
-      - 9099:443/tcp
-    volumes:
-      - ./proxy/conf.d:/etc/nginx/conf.d:rw
-      #- ./proxy/nginx.conf:/etc/nginx/nginx.conf:rw
-      - ./proxy/certs:/etc/ssl/nginx:ro
-      #- /etc/localtime:/etc/localtime:ro
-      #- /var/run/docker.sock:/tmp/docker.sock:ro
-    restart: unless-stopped
-
-#    image: jwilder/nginx-proxy:alpine
-#    #    labels:
-#    #      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
-#    container_name: nextcloud-proxy
-#    networks:
-#      - nextcloud_network
-#    ports:
-#      #- 80:80
-#      #- 443:443
-#    volumes:
-#      - ./proxy/conf.d:/etc/nginx/conf.d:rw
-#      - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
-#      #- ./proxy/html:/usr/share/nginx/html:rw
-#      - ./proxy/certs:/etc/nginx/certs:ro
-#      - /etc/localtime:/etc/localtime:ro
-#      - /var/run/docker.sock:/tmp/docker.sock:ro
-#    restart: unless-stopped
-
   db:
     image: mariadb
-    container_name: nextcloud-mariadb
     command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
-    networks:
-      - nextcloud_network
+    restart: always
+    ports:
+      - 3310:3306/tcp
     volumes:
       - db:/var/lib/mysql
-      - /etc/localtime:/etc/localtime:ro
     environment:
       - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_PASSWORD=mysql
-      - MYSQL_DATABASE=nextcloud
-      - MYSQL_USER=nextcloud
-    restart: unless-stopped
+    env_file:
+      - db.env
+
+  redis:
+    image: redis:alpine
+    restart: always
 
   app:
     image: nextcloud:fpm-alpine
+    restart: always
+    hostname: "nextcloud-app"
     container_name: nextcloud-app
-    networks:
-      - nextcloud_network
-    depends_on:
-      #- letsencrypt
-      - proxy
-      - db
     volumes:
       - nextcloud:/var/www/html
-      #- ./app/php/www.conf:/usr/local/etc/php-fpm.d/www.conf
-      #- ./app/config:/var/www/html/config
-      #- ./app/custom_apps:/var/www/html/custom_apps
-      #- ./app/data:/var/www/html/data
-      #- ./app/themes:/var/www/html/themes
-      - /etc/localtime:/etc/localtime:ro
     environment:
-      - VIRTUAL_HOST=nextcloud.YOUR-DOMAIN
-      - LETSENCRYPT_HOST=nextcloud.YOUR-DOMAIN
-      - LETSENCRYPT_EMAIL=YOUR-EMAIL
-    restart: unless-stopped
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+      - NEXTCLOUD_DATA_DIR=/var/www/data
+      - NEXTCLOUD_TABLE_PREFIX=
+      - NEXTCLOUD_UPDATE=1
+    env_file:
+      - db.env
+    depends_on:
+      - db
+      - redis
 
-      # letsencrypt:
-      # image: jrcs/letsencrypt-nginx-proxy-companion
-      # container_name: nextcloud-letsencrypt
-      # depends_on:
-      # - proxy
-      # networks:
-      # - nextcloud_network
-      # volumes:
-      # - ./proxy/certs:/etc/nginx/certs:rw
-      # - ./proxy/vhost.d:/etc/nginx/vhost.d:rw
-      # - ./proxy/html:/usr/share/nginx/html:rw
-      # - /etc/localtime:/etc/localtime:ro
-      # - /var/run/docker.sock:/var/run/docker.sock:ro
-    # restart: unless-stopped
+  web:
+    build: ./web
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html:ro
+    environment:
+      - VIRTUAL_HOST=cloud.example.com
+      - LETSENCRYPT_HOST=
+      - LETSENCRYPT_EMAIL=
+    networks:
+      - proxy-tier
+      - default
+    depends_on:
+      - app
+
+  cron:
+    image: nextcloud:fpm-alpine
+    restart: always
+    volumes:
+      - nextcloud:/var/www/html
+    entrypoint: /cron.sh
+    depends_on:
+      - db
+      - redis
+
+  proxy:
+    build: ./proxy
+    restart: always
+    ports:
+      #- 80:80
+      #- 443:443
+      - 9099:443
+    volumes:
+      - ./proxy/certs:/etc/ssl/nginx:ro
+    networks:
+      - proxy-tier
 
 volumes:
-  nextcloud:
   db:
+  nextcloud:
 
 networks:
-  nextcloud_network:
+  proxy-tier:
