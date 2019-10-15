@@ -2,21 +2,28 @@ version: '3.7'
 
 services:
   db:
-    image: mariadb
+    image: mariadb:latest
     command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     restart: always
     ports:
       - 3310:3306/tcp
     volumes:
       - db:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
     environment:
-      - MYSQL_ROOT_PASSWORD=
+      - MYSQL_ROOT_PASSWORD=root
     env_file:
       - db.env
+    networks:
+      app_net:
+        ipv4_address: 172.26.238.10
 
   redis:
     image: redis:alpine
     restart: always
+    networks:
+      app_net:
+        ipv4_address: 172.26.238.11
 
   app:
     image: nextcloud:fpm-alpine
@@ -25,10 +32,11 @@ services:
     container_name: nextcloud-app
     volumes:
       - nextcloud:/var/www/html
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - MYSQL_HOST=db
       - REDIS_HOST=redis
-      - NEXTCLOUD_DATA_DIR=/var/www/data
+      - NEXTCLOUD_DATA_DIR=/var/www/html/data
       - NEXTCLOUD_TABLE_PREFIX=
       - NEXTCLOUD_UPDATE=1
     env_file:
@@ -36,19 +44,23 @@ services:
     depends_on:
       - db
       - redis
+    networks:
+      app_net:
+        ipv4_address: 172.26.238.12
 
   web:
     build: ./web
     restart: always
     volumes:
       - nextcloud:/var/www/html:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 9099:80
     environment:
       - VIRTUAL_HOST=cloud.example.com
-      - LETSENCRYPT_HOST=
-      - LETSENCRYPT_EMAIL=
     networks:
-      - proxy-tier
-      - default
+      app_net:
+        ipv4_address: 172.26.238.13
     depends_on:
       - app
 
@@ -57,26 +69,22 @@ services:
     restart: always
     volumes:
       - nextcloud:/var/www/html
+      - /etc/localtime:/etc/localtime:ro
     entrypoint: /cron.sh
+    networks:
+      app_net:
+        ipv4_address: 172.26.238.14
     depends_on:
       - db
       - redis
 
-  proxy:
-    build: ./proxy
-    restart: always
-    ports:
-      #- 80:80
-      #- 443:443
-      - 9099:443
-    volumes:
-      - ./proxy/certs:/etc/ssl/nginx:ro
-    networks:
-      - proxy-tier
+networks:
+  app_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.26.238.0/24"
 
 volumes:
   db:
   nextcloud:
-
-networks:
-  proxy-tier:

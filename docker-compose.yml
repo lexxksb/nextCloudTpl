@@ -30,7 +30,7 @@ services:
     environment:
       - MYSQL_HOST=db
       - REDIS_HOST=redis
-      - NEXTCLOUD_DATA_DIR=/var/www/data
+      - NEXTCLOUD_DATA_DIR=/var/www/html/data
       - NEXTCLOUD_TABLE_PREFIX=
       - NEXTCLOUD_UPDATE=1
     env_file:
