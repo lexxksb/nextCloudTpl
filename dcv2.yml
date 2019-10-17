@@ -36,8 +36,6 @@ services:
     environment:
       - MYSQL_HOST=db
       - REDIS_HOST=redis
-      - NEXTCLOUD_DATA_DIR=/var/www/html/data
-      - NEXTCLOUD_TABLE_PREFIX=
       - NEXTCLOUD_UPDATE=1
     env_file:
       - db.env
@@ -54,8 +52,9 @@ services:
     volumes:
       - nextcloud:/var/www/html:ro
       - /etc/localtime:/etc/localtime:ro
+      - ./proxy/certs:/etc/ssl/nginx:ro
     ports:
-      - 9099:80
+      - 9099:443
     environment:
       - VIRTUAL_HOST=cloud.example.com
     networks:
